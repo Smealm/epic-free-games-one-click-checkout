@@ -10,8 +10,6 @@ Spend less time navigating individual game pages and more time building your lib
 
 ### Quick install
 
-**[⬇️ Install Epic Free Games — One-Click Checkout](https://github.com/Smealm/epic-free-games-one-click-checkout/raw/refs/heads/main/Epic%20Games%20-%20All%20Free%20Games.user.js)**
-
 <a href="https://github.com/Smealm/epic-free-games-one-click-checkout/raw/refs/heads/main/Epic%20Games%20-%20All%20Free%20Games.user.js"><img alt="Install with your userscript manager" src="https://img.shields.io/badge/Install-Userscript-2ea44f?style=for-the-badge&logo=github&logoColor=white" /></a>
 
 1. Install a compatible userscript manager from the recommendations below.
