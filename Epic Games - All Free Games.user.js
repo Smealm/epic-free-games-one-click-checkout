@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Epic Games - All Free Games
 // @namespace    local.epic-free-games
-// @version      0.6.0
-// @description  Discover desktop and mobile giveaways with Epic-inspired styling
+// @version      0.8.2
+// @description  Discover desktop and mobile giveaways, check ownership, and build a combined checkout link
 // @match        https://store.epicgames.com/*
 // @match        https://www.epicgames.com/store/*
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @connect      store-site-backend-static-ipv4.ak.epicgames.com
 // @connect      egs-platform-service.store.epicgames.com
 // @connect      api.egdata.app
@@ -25,10 +26,14 @@
   const EGDATA_API =
     "https://api.egdata.app/free-games?country=US";
 
+  const OWNERSHIP_API = "https://store.epicgames.com/graphql";
   const COUNTRY = "US";
   const LOCALE = "en";
 
-  // Epic-inspired colors
+  // Use the page's window for authenticated ownership requests.
+  // Public feeds continue using GM_xmlhttpRequest.
+  const pageWindow = unsafeWindow;
+
   const COLORS = {
     background: "#101014",
     surface: "#18181c",
@@ -40,22 +45,48 @@
     accentHover: "#63ceff",
     blue: "#0078f2",
     warning: "#ffd166",
+    success: "#4ade80",
+    danger: "#f87171",
   };
 
+  // ------------------------------------------------------------
+  // UI
+  // ------------------------------------------------------------
+
   const button = document.createElement("button");
-  button.innerHTML = `
-    <span style="font-size:19px;line-height:1">✦</span>
-    <span>FREE GAMES</span>
-    <span style="
-      margin-left:3px;
-      padding:2px 6px;
-      border-radius:4px;
-      background:rgba(38,187,255,.16);
-      color:${COLORS.accent};
-      font-size:10px;
-      letter-spacing:.6px;
-    ">ALL PLATFORMS</span>
-  `;
+
+  function setButtonLabel(scanning = false) {
+    if (scanning) {
+      button.innerHTML = `
+        <span style="
+          display:inline-block;
+          width:13px;
+          height:13px;
+          border:2px solid rgba(255,255,255,.35);
+          border-top-color:${COLORS.accent};
+          border-radius:50%;
+        "></span>
+        <span>SCANNING OFFERS...</span>
+      `;
+      return;
+    }
+
+    button.innerHTML = `
+      <span style="font-size:19px;line-height:1">✦</span>
+      <span>FREE GAMES</span>
+      <span style="
+        margin-left:3px;
+        padding:2px 6px;
+        border-radius:4px;
+        background:rgba(38,187,255,.16);
+        color:${COLORS.accent};
+        font-size:10px;
+        letter-spacing:.6px;
+      ">ALL PLATFORMS</span>
+    `;
+  }
+
+  setButtonLabel();
 
   Object.assign(button.style, {
     position: "fixed",
@@ -67,7 +98,7 @@
     justifyContent: "center",
     gap: "10px",
     padding: "14px 18px",
-    border: `1px solid rgba(38,187,255,.5)`,
+    border: "1px solid rgba(38,187,255,.5)",
     borderRadius: "9px",
     background: COLORS.background,
     color: COLORS.text,
@@ -131,8 +162,7 @@
       gap: "12px",
       padding: "18px 18px 16px",
       borderBottom: `1px solid ${COLORS.border}`,
-      background:
-        "linear-gradient(135deg, #1c222a 0%, #141419 65%)",
+      background: "linear-gradient(135deg, #1c222a 0%, #141419 65%)",
     });
 
     const left = el("div", {
@@ -157,6 +187,7 @@
     }, "✦");
 
     const copy = el("div", { minWidth: "0" });
+
     const title = el("div", {
       color: COLORS.text,
       fontSize: "17px",
@@ -210,6 +241,10 @@
     return header;
   }
 
+  // ------------------------------------------------------------
+  // PUBLIC API REQUESTS
+  // ------------------------------------------------------------
+
   function requestJson(url) {
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
@@ -241,6 +276,205 @@
       });
     });
   }
+
+  // ------------------------------------------------------------
+  // DIRECT PAGE-WINDOW FETCH
+  //
+  // No postMessage bridge or injected script.
+  // Fetch is invoked through the page's window and includes
+  // the Epic session credentials.
+  // ------------------------------------------------------------
+
+  async function pageContextFetchJson(
+    url,
+    options = {},
+    timeoutMs = 20000
+  ) {
+    const Controller = pageWindow.AbortController;
+
+    if (typeof Controller !== "function") {
+      throw new Error(
+        "The page's AbortController is unavailable"
+      );
+    }
+
+    const controller = new Controller();
+
+    const timer = pageWindow.setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      const response = await pageWindow.fetch.call(
+        pageWindow,
+        url,
+        {
+          ...options,
+          credentials: "include",
+          signal: controller.signal,
+        }
+      );
+
+      const text = await response.text();
+
+      if (!response.ok) {
+        throw new Error(
+          `Ownership API returned HTTP ${response.status}: ` +
+          text.slice(0, 300)
+        );
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(
+          "Ownership API returned invalid JSON: " +
+          text.slice(0, 300)
+        );
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error(
+          `Ownership request timed out after ${timeoutMs} ms`
+        );
+      }
+
+      throw error;
+    } finally {
+      pageWindow.clearTimeout(timer);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // OWNERSHIP CHECK
+  // ------------------------------------------------------------
+
+  async function checkOfferOwnership(namespaceId, offerId) {
+    const query = `
+      query launcherQuery($namespace: String!, $offerId: String!) {
+        Launcher {
+          entitledOfferItems(
+            namespace: $namespace,
+            offerId: $offerId
+          ) {
+            entitledToAllItemsInOffer
+            entitledToAnyItemInOffer
+          }
+        }
+      }
+    `;
+
+    const json = await pageContextFetchJson(OWNERSHIP_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          namespace: namespaceId,
+          offerId,
+        },
+      }),
+    });
+
+    if (json.errors?.length) {
+      throw new Error(
+        json.errors
+          .map(error => error.message)
+          .filter(Boolean)
+          .join("; ") || "Epic returned a GraphQL error"
+      );
+    }
+
+    const result = json.data?.Launcher?.entitledOfferItems;
+
+    if (
+      !result ||
+      typeof result.entitledToAnyItemInOffer !== "boolean" ||
+      typeof result.entitledToAllItemsInOffer !== "boolean"
+    ) {
+      console.error(
+        "[Epic Free Games] Unexpected ownership response:",
+        json
+      );
+
+      throw new Error("Unexpected ownership response structure");
+    }
+
+    const owned =
+      result.entitledToAnyItemInOffer === true ||
+      result.entitledToAllItemsInOffer === true;
+
+    return owned ? "owned" : "unowned";
+  }
+
+  async function checkGamesOwnership(games) {
+    const candidates = games.filter(game =>
+      game.checkoutEligible &&
+      game.namespaceId &&
+      game.offerId
+    );
+
+    let nextIndex = 0;
+    let failures = 0;
+
+    console.debug(
+      "[Epic Free Games] Ownership candidates:",
+      candidates.length
+    );
+
+    const workerCount = Math.min(3, candidates.length);
+
+    async function worker() {
+      while (nextIndex < candidates.length) {
+        const index = nextIndex++;
+        const game = candidates[index];
+
+        try {
+          game.ownershipStatus = await checkOfferOwnership(
+            game.namespaceId,
+            game.offerId
+          );
+
+          console.debug(
+            `[Epic Free Games] ${game.title}: ${game.ownershipStatus}`
+          );
+        } catch (error) {
+          game.ownershipStatus = "unknown";
+          failures++;
+
+          console.warn(
+            "[Epic Free Games] Ownership check failed:",
+            game.title,
+            error
+          );
+        }
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: workerCount }, () => worker())
+    );
+
+    for (const game of games) {
+      if (!game.ownershipStatus) {
+        game.ownershipStatus = "unknown";
+      }
+    }
+
+    console.info(
+      `[Epic Free Games] Ownership checks complete: ` +
+      `${candidates.length - failures} succeeded, ${failures} failed.`
+    );
+
+    return failures;
+  }
+
+  // ------------------------------------------------------------
+  // DESKTOP GAME DISCOVERY
+  // ------------------------------------------------------------
 
   function currentDesktopGames(json) {
     const elements =
@@ -293,6 +527,7 @@
         namespaceId,
         offerId,
         checkoutEligible: true,
+        ownershipStatus: "unknown",
         url:
           `https://store.epicgames.com/${LOCALE}-US/` +
           `${path}/${slug}`,
@@ -301,6 +536,10 @@
 
     return games;
   }
+
+  // ------------------------------------------------------------
+  // MOBILE GAME DISCOVERY
+  // ------------------------------------------------------------
 
   function isActiveMobileClaim(content) {
     return (content?.purchase ?? []).some(entry =>
@@ -327,6 +566,7 @@
           namespaceId: null,
           offerId: null,
           checkoutEligible: false,
+          ownershipStatus: "unknown",
           url:
             `https://store.epicgames.com/${LOCALE}-US/p/${slug}`,
         });
@@ -353,6 +593,10 @@
     return currentMobileGames(json, platform);
   }
 
+  // ------------------------------------------------------------
+  // EGDATA MATCHING FOR MOBILE OFFERS
+  // ------------------------------------------------------------
+
   function normalize(value) {
     return String(value ?? "")
       .normalize("NFKC")
@@ -374,16 +618,12 @@
     const values = [];
 
     for (const tag of entry.tags ?? []) {
-      values.push(
-        typeof tag === "string" ? tag : tag?.name
-      );
+      values.push(typeof tag === "string" ? tag : tag?.name);
     }
 
     for (const platform of entry.platforms ?? []) {
       values.push(
-        typeof platform === "string"
-          ? platform
-          : platform?.name
+        typeof platform === "string" ? platform : platform?.name
       );
     }
 
@@ -411,12 +651,10 @@
       if (!entry?.id || !entry?.namespace) return false;
 
       const startValue =
-        entry.giveaway?.startDate ??
-        entry.startDate;
+        entry.giveaway?.startDate ?? entry.startDate;
 
       const endValue =
-        entry.giveaway?.endDate ??
-        entry.endDate;
+        entry.giveaway?.endDate ?? entry.endDate;
 
       if (!startValue || !endValue) return true;
 
@@ -475,7 +713,7 @@
 
       if (!match) {
         console.warn(
-          "Could not uniquely resolve mobile offer:",
+          "[Epic Free Games] Could not uniquely resolve mobile offer:",
           game.platform,
           game.title,
           { slugMatches, titleMatches }
@@ -489,21 +727,26 @@
         namespaceId: match.namespace,
         offerId: match.id,
         checkoutEligible: true,
+        ownershipStatus: "unknown",
       };
     });
   }
+
+  // ------------------------------------------------------------
+  // CHECKOUT — ONLY CONFIRMED-UNOWNED OFFERS
+  // ------------------------------------------------------------
 
   function buildCheckoutUrl(games) {
     const checkoutGames = games.filter(game =>
       game.namespaceId &&
       game.offerId &&
-      game.checkoutEligible
+      game.checkoutEligible &&
+      game.ownershipStatus === "unowned"
     );
 
     if (!checkoutGames.length) return null;
 
     const params = new URLSearchParams();
-
     params.set("highlightColor", "0078f2");
 
     for (const game of checkoutGames) {
@@ -521,20 +764,35 @@
     );
   }
 
+  // ------------------------------------------------------------
+  // RENDER RESULTS
+  // ------------------------------------------------------------
+
   function render(games, errors) {
     panel.replaceChildren();
     panel.style.display = "block";
     panel.append(makeHeader("Current giveaways · US region"));
 
-    const content = el("div", {
-      padding: "16px",
-    });
+    const content = el("div", { padding: "16px" });
 
     const checkoutGames = games.filter(game =>
       game.namespaceId &&
       game.offerId &&
-      game.checkoutEligible
+      game.checkoutEligible &&
+      game.ownershipStatus === "unowned"
     );
+
+    const ownedCount = games.filter(
+      game => game.ownershipStatus === "owned"
+    ).length;
+
+    const unownedCount = games.filter(
+      game => game.ownershipStatus === "unowned"
+    ).length;
+
+    const unknownCount = games.filter(
+      game => game.ownershipStatus === "unknown"
+    ).length;
 
     const stats = el("div", {
       display: "grid",
@@ -546,15 +804,15 @@
     const platforms = [
       {
         name: "Desktop",
-        count: games.filter(g => g.platform === "Desktop").length,
+        count: games.filter(game => game.platform === "Desktop").length,
       },
       {
         name: "Android",
-        count: games.filter(g => g.platform === "Android").length,
+        count: games.filter(game => game.platform === "Android").length,
       },
       {
         name: "iOS",
-        count: games.filter(g => g.platform === "iOS").length,
+        count: games.filter(game => game.platform === "iOS").length,
       },
     ];
 
@@ -587,6 +845,65 @@
 
     content.append(stats);
 
+    const ownershipSummary = el("div", {
+      display: "grid",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gap: "7px",
+      marginBottom: "16px",
+    });
+
+    const ownershipStats = [
+      {
+        label: "Not owned",
+        count: unownedCount,
+        color: COLORS.success,
+        background: "rgba(34,197,94,.08)",
+      },
+      {
+        label: "Already owned",
+        count: ownedCount,
+        color: COLORS.danger,
+        background: "rgba(239,68,68,.08)",
+      },
+      {
+        label: "Unknown",
+        count: unknownCount,
+        color: COLORS.warning,
+        background: "rgba(255,209,102,.07)",
+      },
+    ];
+
+    for (const stat of ownershipStats) {
+      const tile = el("div", {
+        padding: "10px 6px",
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: "7px",
+        background: stat.background,
+        textAlign: "center",
+        minWidth: "0",
+      });
+
+      tile.append(
+        el("div", {
+          color: stat.color,
+          fontSize: "20px",
+          fontWeight: "750",
+          lineHeight: "1.2",
+        }, String(stat.count)),
+        el("div", {
+          marginTop: "5px",
+          color: stat.color,
+          fontSize: "10px",
+          fontWeight: "650",
+          overflowWrap: "anywhere",
+        }, stat.label)
+      );
+
+      ownershipSummary.append(tile);
+    }
+
+    content.append(ownershipSummary);
+
     if (errors.length) {
       const warning = el("div", {
         padding: "11px 12px",
@@ -600,7 +917,7 @@
       });
 
       warning.textContent =
-        "Some feeds or ID lookups failed: " + errors.join("; ");
+        "Some feeds or lookups need attention: " + errors.join("; ");
 
       content.append(warning);
     }
@@ -733,6 +1050,42 @@
 
       meta.append(platformBadge, freeBadge);
 
+      const ownershipBadgeStyles = {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "4px",
+        padding: "3px 6px",
+        borderRadius: "4px",
+        fontSize: "10px",
+        fontWeight: "750",
+      };
+
+      if (game.ownershipStatus === "unowned") {
+        meta.append(
+          el("span", {
+            ...ownershipBadgeStyles,
+            background: "rgba(34,197,94,.12)",
+            color: COLORS.success,
+          }, "✓ NOT OWNED")
+        );
+      } else if (game.ownershipStatus === "owned") {
+        meta.append(
+          el("span", {
+            ...ownershipBadgeStyles,
+            background: "rgba(239,68,68,.12)",
+            color: COLORS.danger,
+          }, "✕ ALREADY OWNED")
+        );
+      } else {
+        meta.append(
+          el("span", {
+            ...ownershipBadgeStyles,
+            background: "rgba(255,209,102,.10)",
+            color: COLORS.warning,
+          }, "? UNKNOWN")
+        );
+      }
+
       if (!game.checkoutEligible) {
         const unresolved = el("div", {
           marginTop: "6px",
@@ -796,11 +1149,11 @@
       cursor: "pointer",
       transition:
         "background .15s ease,transform .15s ease,opacity .15s ease",
-    }, "");
+    });
 
     checkout.append(
       el("span", { fontSize: "16px" }, "↗"),
-      el("span", {}, `CHECKOUT FREE GAMES · ${checkoutGames.length}`)
+      el("span", {}, `CHECKOUT UNOWNED GAMES · ${checkoutGames.length}`)
     );
 
     checkout.disabled = checkoutGames.length === 0;
@@ -821,10 +1174,12 @@
     }
 
     checkout.addEventListener("click", () => {
-      const url = buildCheckoutUrl(checkoutGames);
+      const url = buildCheckoutUrl(games);
 
       if (!url) {
-        alert("No eligible free games are available for checkout.");
+        alert(
+          "No offers confirmed as unowned are currently available for checkout."
+        );
         return;
       }
 
@@ -833,34 +1188,29 @@
 
     content.append(checkout);
 
-    const note = el("div", {
-      marginTop: "11px",
-      color: COLORS.muted,
-      fontSize: "11px",
-      lineHeight: "1.5",
-      textAlign: "center",
-    }, "Review the games in Epic checkout before confirming your order.");
-
-    content.append(note);
+    content.append(
+      el("div", {
+        marginTop: "11px",
+        color: COLORS.muted,
+        fontSize: "11px",
+        lineHeight: "1.5",
+        textAlign: "center",
+      },
+      "Only games confirmed as unowned are included. Unknown ownership is excluded. Review the games in Epic checkout before confirming your order.")
+    );
 
     panel.append(content);
   }
+
+  // ------------------------------------------------------------
+  // MAIN SCAN
+  // ------------------------------------------------------------
 
   button.addEventListener("click", async () => {
     button.disabled = true;
     button.style.opacity = "0.75";
     button.style.cursor = "wait";
-    button.innerHTML = `
-      <span style="
-        display:inline-block;
-        width:13px;
-        height:13px;
-        border:2px solid rgba(255,255,255,.35);
-        border-top-color:${COLORS.accent};
-        border-radius:50%;
-      "></span>
-      <span>SCANNING OFFERS...</span>
-    `;
+    setButtonLabel(true);
 
     panel.replaceChildren();
     panel.style.display = "block";
@@ -885,7 +1235,7 @@
       el("div", {
         marginTop: "5px",
         fontSize: "12px",
-      }, "Checking current promotions and resolving offer IDs…")
+      }, "Checking promotions, resolving offer IDs, and checking ownership…")
     );
 
     panel.append(loading);
@@ -905,18 +1255,30 @@
         games.push(...currentDesktopGames(results[0].value));
       } else {
         errors.push("Desktop feed failed");
+        console.error(
+          "[Epic Free Games] Desktop feed failed:",
+          results[0].reason
+        );
       }
 
       if (results[1].status === "fulfilled") {
         games.push(...results[1].value);
       } else {
         errors.push("Android feed failed");
+        console.error(
+          "[Epic Free Games] Android feed failed:",
+          results[1].reason
+        );
       }
 
       if (results[2].status === "fulfilled") {
         games.push(...results[2].value);
       } else {
         errors.push("iOS feed failed");
+        console.error(
+          "[Epic Free Games] iOS feed failed:",
+          results[2].reason
+        );
       }
 
       const unique = [
@@ -933,39 +1295,55 @@
       try {
         enriched = await enrichMobileOffers(unique);
       } catch (error) {
-        console.error("EGData lookup failed:", error);
+        console.error(
+          "[Epic Free Games] EGData lookup failed:",
+          error
+        );
         errors.push(`Mobile ID lookup failed: ${error.message}`);
+      }
+
+      const ownershipFailures = await checkGamesOwnership(enriched);
+
+      if (ownershipFailures > 0) {
+        errors.push(
+          `Ownership could not be verified for ${ownershipFailures} offer(s); those offers are excluded from checkout`
+        );
+      }
+
+      const unresolvedCount = enriched.filter(game =>
+        !game.checkoutEligible ||
+        !game.namespaceId ||
+        !game.offerId
+      ).length;
+
+      if (unresolvedCount > 0) {
+        errors.push(
+          `${unresolvedCount} offer(s) could not be matched to checkout IDs`
+        );
       }
 
       render(enriched, errors);
     } catch (error) {
+      console.error(
+        "[Epic Free Games] Unexpected error:",
+        error
+      );
+
       panel.replaceChildren();
       panel.append(makeHeader("Something went wrong"));
 
-      const message = el("div", {
-        padding: "18px",
-        color: COLORS.warning,
-        overflowWrap: "anywhere",
-      }, `Unexpected error: ${error.message}`);
-
-      panel.append(message);
+      panel.append(
+        el("div", {
+          padding: "18px",
+          color: COLORS.warning,
+          overflowWrap: "anywhere",
+        }, `Unexpected error: ${error.message}`)
+      );
     } finally {
       button.disabled = false;
       button.style.opacity = "1";
       button.style.cursor = "pointer";
-      button.innerHTML = `
-        <span style="font-size:19px;line-height:1">✦</span>
-        <span>FREE GAMES</span>
-        <span style="
-          margin-left:3px;
-          padding:2px 6px;
-          border-radius:4px;
-          background:rgba(38,187,255,.16);
-          color:${COLORS.accent};
-          font-size:10px;
-          letter-spacing:.6px;
-        ">ALL PLATFORMS</span>
-      `;
+      setButtonLabel(false);
     }
   });
 })();
