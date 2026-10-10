@@ -17,7 +17,7 @@ Spend less time navigating individual game pages and more time building your lib
 3. Your userscript manager should open the script and prompt you to install it.
 4. Review the script and confirm installation.
 5. Visit the [Epic Games Store](https://store.epicgames.com/).
-6. Click the floating **FREE GAMES / ALL PLATFORMS** button to open the offer panel.
+6. Click the floating **FREE GAMES** button that's located in the bottom right corner to open the offer panel.
 
 If clicking the link displays the raw source code instead, open your userscript manager's dashboard, create a new script, and paste in the contents of the linked `.user.js` file.
 
@@ -31,15 +31,99 @@ Choose the manager that best fits your browser and preferences.
 
 Userscript-manager availability and permissions vary by browser. Make sure your manager is enabled and permitted to run scripts on the Epic Games Store.
 
+## 🕹️ How to use
+
+Once installed, the userscript runs while you browse the Epic Games Store.
+
+1. **Sign in to Epic Games Store.** Use the account where you want to claim the games.
+2. **Open the offer panel.** Click the floating **FREE GAMES / ALL PLATFORMS** button.
+3. **Review the offers.** Browse the discovered desktop and mobile giveaways and check the platform counters.
+4. **Check ownership status.** When ownership checks succeed, games already in your library can be excluded from the combined checkout link. Offers whose ownership status cannot be confirmed should not be treated as verified unowned games.
+5. **Open the combined checkout.** Click the checkout action to open the prepared link.
+6. **Review and claim.** Confirm the offers shown by Epic and complete checkout yourself.
+
+The userscript prepares the checkout link; it does not automatically claim games for you. Offer availability, ownership results, and checkout acceptance may vary.
+
+## 🤔 Why use this over other options?
+
+There are several community projects that help people find or claim free Epic Games Store offers. The main difference is how you want to run the tool and how much of the process you want to automate.
+
+### 1. [Vogler's Free Games Claimer](https://github.com/vogler/free-games-claimer)
+
+A multi-store claiming tool that supports Epic Games Store and other services, including Amazon Prime Gaming and GOG, with experimental support for Unreal Engine assets.
+
+**Best for:** Users who want a broader, automated claiming workflow across multiple gaming stores.
+
+- Supports automated claiming workflows and notifications.
+- Can run locally with Node.js or through Docker/Podman.
+- Offers integrations and configuration options for users who want a more automated setup.
+- Requires running and maintaining a separate tool rather than simply opening the Epic Games Store with a userscript enabled.
+
+This userscript takes a narrower approach: it focuses on bringing eligible Epic offers together in your existing browser session and lets you complete checkout manually.
+
+### 2. [claabs/epicgames-freegames-node](https://github.com/claabs/epicgames-freegames-node)
+
+A Node.js-based project for discovering and claiming Epic Games Store giveaways. It supports scheduled runs, multiple accounts, notifications, and prepopulated checkout links that users can complete themselves.
+
+**Best for:** Users who want a configurable, scheduled workflow, notifications, or multi-account support.
+
+- Supports automated and scheduled tasks.
+- Can provide a checkout link for you to review and complete.
+- Supports notifications and multiple-account configurations.
+- Requires setting up and running a separate Node.js application or container.
+
+This userscript is intended for people who prefer a lightweight, browser-based workflow without maintaining a separate runtime, configuration, or scheduled job.
+
+### 3. This userscript — Epic Free Games One-Click Checkout
+
+**Best for:** Users who want to discover offers and prepare a combined checkout directly from the Epic Games Store website.
+
+- Runs in a compatible userscript manager in your browser.
+- Combines eligible desktop and mobile offers in one interface.
+- Uses catalog matching to help resolve mobile offers to the identifiers needed for checkout.
+- Checks ownership when possible, so confirmed-owned offers can be excluded.
+- Prepares a combined checkout link without automatically completing the purchase or claim.
+- Does not require you to set up a separate Node.js application, Python environment, Docker container, or local server.
+
+It is intentionally focused on **discovery, ownership-aware filtering, and checkout preparation** rather than unattended claiming, notifications, or scheduling.
+
+### Feature comparison
+
+| Feature | Vogler's Free Games Claimer | Epic Games Free Games Node | This userscript |
+|---|---|---|---|
+| Runs inside your existing Epic store tab | No | No | **Yes** |
+| Separate runtime or container required | Yes | Yes | **No** |
+| Desktop free-game discovery | Yes | Yes | Yes |
+| Mobile offer discovery in one interface | Not its main focus | Not its main focus | **Yes** |
+| Automated or scheduled workflows | Yes | Yes | No |
+| Notifications | Supported | Supported | No |
+| Combined checkout link | Workflow-dependent | Yes | **Yes** |
+| Ownership-aware checkout filtering | Not its main focus | Not its main focus | **Yes, when checks succeed** |
+| User reviews and completes checkout | Depends on workflow | Supported | **Yes** |
+| Multi-store support | Yes | Primarily Epic Games Store | Epic Games Store |
+
+*Features and behavior can change between project versions. The table describes the general focus of each project, not a guarantee that every feature is available in every configuration.*
+
+### Which should you choose?
+
+- Choose **Vogler's Free Games Claimer** if you want a broader multi-store claiming tool.
+- Choose **Epic Games Free Games Node** if you want scheduled runs, notifications, or a more configurable automated workflow.
+- Choose **this userscript** if you want a simple, browser-based way to collect desktop and mobile offers, filter out games confirmed to be owned, and prepare one checkout link.
+
+This userscript does not promise to avoid CAPTCHA or other anti-bot checks. Epic can change its APIs or request verification regardless of which tool you use.
+
 ## ✨ Features
 
 - **Multi-platform offer discovery** — Gathers eligible free offers from desktop, Android, and iOS storefront data.
 - **Combined checkout link** — Builds a checkout URL containing multiple matching Epic offer identifiers.
+- **Ownership-aware filtering** — Checks whether offers are already owned and excludes confirmed-owned games from the combined checkout.
 - **One unified interface** — Review discovered giveaways in a single floating panel.
 - **Platform counters** — See the number of discovered desktop, Android, and iOS offers at a glance.
 - **Visual offer cards** — Browse the collected games in a clear, organized layout.
 - **Quick checkout access** — Move from discovering offers to reviewing a combined checkout without opening every game individually.
 - **Manual claiming** — You decide when to proceed and complete the final checkout steps.
+
+Ownership-aware filtering depends on successful ownership checks. If a check fails or returns an inconclusive result, the script should not treat that offer as confirmed unowned.
 
 ## 🎯 Why this project exists
 
@@ -66,13 +150,13 @@ It isn't intended to replace the Epic Games Store, automate account activity, or
 
 1. Open the Epic Games Store with the userscript enabled.
 2. Click **FREE GAMES / ALL PLATFORMS**.
-3. Review the discovered offers and platform counters.
+3. Review the discovered offers, platform counters, and ownership results.
 4. Click the combined checkout action.
 5. Verify the games listed at checkout and complete the claiming process manually.
 
 The main benefit is fewer repeated page visits and less navigation between storefronts. Instead of handling each offer as a separate browsing task, you can collect the eligible offers into one convenient starting point.
 
-The generated link does not guarantee that every offer will be claimable. Availability may depend on the region, account, platform, promotion period, and Epic's checkout behavior.
+The generated link does not guarantee that every offer will be claimable. Availability may depend on the region, account, platform, promotion period, ownership-check results, and Epic's checkout behavior.
 
 ## 🎨 Interface and styling
 
@@ -92,6 +176,7 @@ The panel brings discovered offers together with:
 - Cyan-blue accents for interactive elements and visual emphasis.
 - Individual offer cards that are easier to scan.
 - Desktop, Android, and iOS counters for a quick overview.
+- Ownership information when available.
 - A prominent checkout action that makes the next step clear.
 
 The goal is to make the userscript feel like a lightweight companion to the store rather than an entirely separate application.
@@ -100,7 +185,7 @@ The goal is to make the userscript feel like a lightweight companion to the stor
 
 ## ⚙️ How it works
 
-The userscript connects offer discovery, catalog matching, and checkout-link generation.
+The userscript connects offer discovery, catalog matching, ownership checks, and checkout-link generation.
 
 ### 1. Desktop offer discovery
 
@@ -114,11 +199,17 @@ It also checks mobile storefront discovery data to identify eligible Android and
 
 Mobile discovery data may not contain every identifier needed to construct a checkout URL. The script uses EGData catalog information to help resolve matching offers and their associated identifiers.
 
-### 4. Combined checkout generation
+### 4. Ownership checks
+
+The script attempts to check whether each offer is already owned by the signed-in Epic account. Confirmed-owned offers can be filtered out of the combined checkout link.
+
+Ownership results depend on Epic's services and the browser's ability to complete the request. An unavailable or inconclusive result is not proof that a game is unowned.
+
+### 5. Combined checkout generation
 
 The script assembles matching namespace and offer identifiers into a single Epic Games Store checkout URL using the store's offer-based checkout format.
 
-### 5. Manual checkout
+### 6. Manual checkout
 
 The link opens the Epic checkout experience, where you can review the listed offers and complete the process yourself.
 
@@ -153,7 +244,8 @@ This project builds on publicly accessible storefront and catalog information, a
 - **Epic Games Store promotion data** — Used to discover desktop free-game promotions.
 - **Epic Games Store mobile discovery data** — Helps surface mobile-specific offers.
 - **[EGData](https://docs.egdata.app/docs)** — A community-maintained source of Epic Games Store catalog and offer information that helps resolve identifiers needed for checkout.
-- **[epicgames-freegames-node](https://github.com/claabs/epicgames-freegames-node)** — A relevant community project for understanding free-game discovery and preparing checkout links for users to complete themselves.
+- **[Vogler's Free Games Claimer](https://github.com/vogler/free-games-claimer)** — A multi-store giveaway claiming project and useful point of comparison for different approaches to free-game automation.
+- **[epicgames-freegames-node](https://github.com/claabs/epicgames-freegames-node)** — A relevant community project for free-game discovery, automation, and preparing checkout links for users to complete themselves.
 - **[epicstore_api](https://epicstore-api.readthedocs.io/en/latest/)** — Community API documentation that can help developers understand and work with Epic Games Store data, including promotions.
 
 ### How these projects helped
@@ -169,7 +261,8 @@ If specific code or assets from another project are copied or adapted, those por
 - Offers may be region-restricted, platform-specific, expired, or unavailable to particular accounts.
 - Mobile offers may require additional catalog matching.
 - Not every discovered offer will necessarily resolve to a valid checkout item.
-- Epic may change its APIs, catalog data, or checkout URL format.
+- Ownership checks may fail or return inconclusive results; only confirmed ownership should be treated as such.
+- Epic may change its APIs, catalog data, ownership-check behavior, or checkout URL format.
 - A combined link does not guarantee that every offer will be accepted or successfully claimed.
 - You should verify the games displayed at checkout before completing the process.
 
