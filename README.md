@@ -16,8 +16,6 @@ Spend less time navigating individual game pages and more time building your lib
 2. Click the install link or green button above.
 3. Your userscript manager should open the script and prompt you to install it.
 4. Review the script and confirm installation.
-5. Visit the [Epic Games Store](https://store.epicgames.com/).
-6. Click the floating **FREE GAMES** button that's located in the bottom right corner to open the offer panel.
 
 If clicking the link displays the raw source code instead, open your userscript manager's dashboard, create a new script, and paste in the contents of the linked `.user.js` file.
 
