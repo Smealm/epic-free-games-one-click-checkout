@@ -37,10 +37,18 @@ Once installed, the userscript runs while you browse the Epic Games Store.
 
 1. **Sign in to Epic Games Store.** Use the account where you want to claim the games.
 2. **Open the offer panel.** Click the floating **FREE GAMES / ALL PLATFORMS** button.
+
+<img width="1915" height="937" alt="annotely_image" src="https://github.com/user-attachments/assets/a694b811-c895-4a62-a5bf-3623f4658ba7" />
+
 3. **Review the offers.** Browse the discovered desktop and mobile giveaways and check the platform counters.
 4. **Check ownership status.** When ownership checks succeed, games already in your library can be excluded from the combined checkout link. Offers whose ownership status cannot be confirmed should not be treated as verified unowned games.
 5. **Open the combined checkout.** Click the checkout action to open the prepared link.
+
+<img width="1918" height="950" alt="annotely_image(1)" src="https://github.com/user-attachments/assets/945d5c87-0874-410c-bc2d-cceb3f42ba57" />
+
 6. **Review and claim.** Confirm the offers shown by Epic and complete checkout yourself.
+
+<img width="1920" height="944" alt="{3D004978-2A63-4D28-A939-DDDDE7B7BB9A}" src="https://github.com/user-attachments/assets/c8b38172-9d2f-4d77-8a71-ddf94fda8ff4" />
 
 The userscript prepares the checkout link; it does not automatically claim games for you. Offer availability, ownership results, and checkout acceptance may vary.
 
