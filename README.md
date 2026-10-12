@@ -6,6 +6,32 @@ A lightweight userscript that gathers Epic Games Store free offers across deskto
 
 Spend less time navigating individual game pages and more time building your library. Discover offers, review them in one place, and head to checkout with fewer clicks — while keeping the final claiming process in your hands.
 
+---
+
+<div align="center">
+
+### 🧭 Explore the README
+
+**Everything you need to get started, understand the features, and see how it works.**
+
+<a href="#-installation"><img src="https://img.shields.io/badge/📦-Installation-202020?style=for-the-badge" alt="Installation" /></a>
+<a href="#-how-to-use"><img src="https://img.shields.io/badge/🕹️-How_to_Use-202020?style=for-the-badge" alt="How to use" /></a>
+<a href="#-features"><img src="https://img.shields.io/badge/✨-Features-202020?style=for-the-badge" alt="Features" /></a>
+<a href="#-how-it-works"><img src="https://img.shields.io/badge/⚙️-How_It_Works-202020?style=for-the-badge" alt="How it works" /></a>
+
+<a href="#-why-use-this-over-other-options"><img src="https://img.shields.io/badge/🤔-Comparisons-202020?style=for-the-badge" alt="Comparisons" /></a>
+<a href="#-the-workflow-this-streamlines"><img src="https://img.shields.io/badge/🔄-Workflow-202020?style=for-the-badge" alt="Workflow" /></a>
+<a href="#-interface-and-styling"><img src="https://img.shields.io/badge/🎨-Interface-202020?style=for-the-badge" alt="Interface" /></a>
+<a href="#-data-sources-and-community-projects"><img src="https://img.shields.io/badge/🧰-Data_Sources-202020?style=for-the-badge" alt="Data sources" /></a>
+
+<a href="#-project-philosophy"><img src="https://img.shields.io/badge/🧭-Philosophy-202020?style=for-the-badge" alt="Project philosophy" /></a>
+<a href="#️-limitations"><img src="https://img.shields.io/badge/⚠️-Limitations-202020?style=for-the-badge" alt="Limitations" /></a>
+<a href="#️-possible-future-improvements"><img src="https://img.shields.io/badge/🗺️-Future_Improvements-202020?style=for-the-badge" alt="Future improvements" /></a>
+
+</div>
+
+---
+
 ## 📦 Installation
 
 ### Quick install
@@ -205,11 +231,39 @@ It also checks mobile storefront discovery data to identify eligible Android and
 
 Mobile discovery data may not contain every identifier needed to construct a checkout URL. The script uses EGData catalog information to help resolve matching offers and their associated identifiers.
 
-### 4. Ownership checks
+### 4. Ownership checks — Preventing checkout failures
 
-The script attempts to check whether each offer is already owned by the signed-in Epic account. Confirmed-owned offers can be filtered out of the combined checkout link.
+Ownership checking is a critical part of building a reliable combined checkout link. It isn't just about hiding games you already own; it helps prevent the entire checkout from failing.
 
-Ownership results depend on Epic's services and the browser's ability to complete the request. An unavailable or inconclusive result is not proof that a game is unowned.
+**Why is ownership checking necessary?**
+
+Epic Games Store checkout processes can reject a checkout when it includes a game or DLC that your account already owns. Because this userscript combines multiple free offers into a single checkout, including even one already-owned item can cause problems with the combined transaction.
+
+Without ownership checking, you could discover several free offers, generate a combined checkout link, and then encounter an error because one of the included items is already in your library.
+
+**How does the script prevent this?**
+
+The userscript uses Epic's GraphQL interface to check entitlement information for discovered offers against your signed-in account. This helps determine whether your account already has the relevant game or DLC.
+
+The process works as follows:
+
+1. **Discover offers.** Collect eligible free offers from the supported storefronts.
+2. **Check entitlements.** Query ownership information through GraphQL to determine whether each offer is already owned by your account.
+3. **Filter owned items.** Exclude offers confirmed as already owned from the combined checkout list.
+4. **Build the checkout link.** Generate a combined checkout URL using the remaining eligible offers.
+5. **Let you review and claim.** Open Epic's checkout so you can verify the included items and complete the process yourself.
+
+**What happens if an offer is already owned?**
+
+It is excluded from the combined checkout list. There's no reason to attempt to claim the same entitlement again when doing so could interfere with checkout.
+
+**What if an ownership check fails?**
+
+An unsuccessful or inconclusive check does not mean that an offer is unowned. The script must distinguish between confirmed ownership, confirmed non-ownership, and an unknown status rather than treating every failed request as permission to include the offer.
+
+The goal is to build a checkout containing offers that are eligible to be claimed without including items that would cause an avoidable ownership conflict.
+
+**In short:** Ownership checking helps keep the combined checkout clean, avoids known conflicts with items already in your library, and makes claiming multiple free offers in one checkout more reliable.
 
 ### 5. Combined checkout generation
 
