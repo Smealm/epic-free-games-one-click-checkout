@@ -8,29 +8,26 @@ Spend less time navigating individual game pages and more time building your lib
 
 ---
 
-<div align="center">
-
 ### 🧭 Explore the README
 
-**Everything you need to get started, understand the features, and see how it works.**
+Everything you need to get started, understand the features, and see how it works.
 
-<a href="#-installation"><img src="https://img.shields.io/badge/📦-Installation-202020?style=for-the-badge" alt="Installation" /></a>
-<a href="#-how-to-use"><img src="https://img.shields.io/badge/🕹️-How_to_Use-202020?style=for-the-badge" alt="How to use" /></a>
-<a href="#-features"><img src="https://img.shields.io/badge/✨-Features-202020?style=for-the-badge" alt="Features" /></a>
-<a href="#-how-it-works"><img src="https://img.shields.io/badge/⚙️-How_It_Works-202020?style=for-the-badge" alt="How it works" /></a>
-
-<a href="#-why-use-this-over-other-options"><img src="https://img.shields.io/badge/🤔-Comparisons-202020?style=for-the-badge" alt="Comparisons" /></a>
-<a href="#-the-workflow-this-streamlines"><img src="https://img.shields.io/badge/🔄-Workflow-202020?style=for-the-badge" alt="Workflow" /></a>
-<a href="#-interface-and-styling"><img src="https://img.shields.io/badge/🎨-Interface-202020?style=for-the-badge" alt="Interface" /></a>
-<a href="#-data-sources-and-community-projects"><img src="https://img.shields.io/badge/🧰-Data_Sources-202020?style=for-the-badge" alt="Data sources" /></a>
-
-<a href="#-project-philosophy"><img src="https://img.shields.io/badge/🧭-Philosophy-202020?style=for-the-badge" alt="Project philosophy" /></a>
-<a href="#️-limitations"><img src="https://img.shields.io/badge/⚠️-Limitations-202020?style=for-the-badge" alt="Limitations" /></a>
-<a href="#️-possible-future-improvements"><img src="https://img.shields.io/badge/🗺️-Future_Improvements-202020?style=for-the-badge" alt="Future improvements" /></a>
-
-</div>
+[![Installation](https://img.shields.io/badge/📦_Installation-222222?style=for-the-badge)](#-installation)
+[![How to Use](https://img.shields.io/badge/🕹️_How_to_Use-222222?style=for-the-badge)](#-how-to-use)
+[![Compare Options](https://img.shields.io/badge/🤔_Compare_Options-222222?style=for-the-badge)](#-why-use-this-over-other-options)
+[![Features](https://img.shields.io/badge/✨_Features-222222?style=for-the-badge)](#-features)
+[![Project Purpose](https://img.shields.io/badge/🎯_Project_Purpose-222222?style=for-the-badge)](#-why-this-project-exists)
+[![Workflow](https://img.shields.io/badge/🔄_Workflow-222222?style=for-the-badge)](#-the-workflow-this-streamlines)
+[![Interface](https://img.shields.io/badge/🎨_Interface-222222?style=for-the-badge)](#-interface-and-styling)
+[![How It Works](https://img.shields.io/badge/⚙️_How_It_Works-222222?style=for-the-badge)](#-how-it-works)
+[![Philosophy](https://img.shields.io/badge/🧭_Philosophy-222222?style=for-the-badge)](#-project-philosophy)
+[![Data Sources](https://img.shields.io/badge/🧰_Data_Sources-222222?style=for-the-badge)](#-data-sources-and-community-projects)
+[![Limitations](https://img.shields.io/badge/⚠️_Limitations-222222?style=for-the-badge)](#-limitations)
+[![Future Improvements](https://img.shields.io/badge/🗺️_Future_Improvements-222222?style=for-the-badge)](#-possible-future-improvements)
 
 ---
+
+
 
 ## 📦 Installation
 
