@@ -6,29 +6,6 @@ A lightweight userscript that gathers Epic Games Store free offers across deskto
 
 Spend less time navigating individual game pages and more time building your library. Discover offers, review them in one place, and head to checkout with fewer clicks — while keeping the final claiming process in your hands.
 
----
-
-### 🧭 Explore the README
-
-Everything you need to get started, understand the features, and see how it works.
-
-[![Installation](https://img.shields.io/badge/📦_Installation-222222?style=for-the-badge)](#-installation)
-[![How to Use](https://img.shields.io/badge/🕹️_How_to_Use-222222?style=for-the-badge)](#-how-to-use)
-[![Compare Options](https://img.shields.io/badge/🤔_Compare_Options-222222?style=for-the-badge)](#-why-use-this-over-other-options)
-[![Features](https://img.shields.io/badge/✨_Features-222222?style=for-the-badge)](#-features)
-[![Project Purpose](https://img.shields.io/badge/🎯_Project_Purpose-222222?style=for-the-badge)](#-why-this-project-exists)
-[![Workflow](https://img.shields.io/badge/🔄_Workflow-222222?style=for-the-badge)](#-the-workflow-this-streamlines)
-[![Interface](https://img.shields.io/badge/🎨_Interface-222222?style=for-the-badge)](#-interface-and-styling)
-[![How It Works](https://img.shields.io/badge/⚙️_How_It_Works-222222?style=for-the-badge)](#-how-it-works)
-[![Philosophy](https://img.shields.io/badge/🧭_Philosophy-222222?style=for-the-badge)](#-project-philosophy)
-[![Data Sources](https://img.shields.io/badge/🧰_Data_Sources-222222?style=for-the-badge)](#-data-sources-and-community-projects)
-[![Limitations](https://img.shields.io/badge/⚠️_Limitations-222222?style=for-the-badge)](#-limitations)
-[![Future Improvements](https://img.shields.io/badge/🗺️_Future_Improvements-222222?style=for-the-badge)](#-possible-future-improvements)
-
----
-
-
-
 ## 📦 Installation
 
 ### Quick install
