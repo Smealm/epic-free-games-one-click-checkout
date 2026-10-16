@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Epic Games - All Free Games
 // @namespace    local.epic-free-games
-// @version      0.8.2
+// @version      0.8.4
 // @description  Discover desktop and mobile giveaways, check ownership, and build a combined checkout link
 // @match        https://store.epicgames.com/*
 // @match        https://www.epicgames.com/store/*
@@ -9,6 +9,7 @@
 // @grant        unsafeWindow
 // @connect      store-site-backend-static-ipv4.ak.epicgames.com
 // @connect      egs-platform-service.store.epicgames.com
+// @connect      store.epicgames.com
 // @connect      api.egdata.app
 // ==/UserScript==
 
@@ -27,8 +28,25 @@
     "https://api.egdata.app/free-games?country=US";
 
   const OWNERSHIP_API = "https://store.epicgames.com/graphql";
+
+  // The store refreshes its session token here before authenticated
+  // calls, so ownership checks run against a freshly refreshed session.
+  const AUTH_HEALTHCHECK_URL =
+    "https://store.epicgames.com/auth-healthcheck";
   const COUNTRY = "US";
   const LOCALE = "en";
+
+  // Headers the Epic store frontend sends with its own GraphQL calls.
+  // The store gateway only attaches the signed-in cookie session to
+  // requests that carry "X-Requested-With: XMLHttpRequest".
+  const OWNERSHIP_HEADERS = {
+    "Content-Type": "application/json",
+    Accept: "application/json, text/plain, */*",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  // Ownership is checked in batches to limit the number of requests.
+  const OWNERSHIP_BATCH_SIZE = 25;
 
   // Use the page's window for authenticated ownership requests.
   // Public feeds continue using GM_xmlhttpRequest.
@@ -325,7 +343,29 @@
       }
 
       try {
-        return JSON.parse(text);
+        const json = JSON.parse(text);
+
+        // An unauthenticated reply still comes back as HTTP 200, so the
+        // page-context call is retried once through the browser cookie
+        // jar before the failure is reported.
+        if (isAuthFailure(JSON.stringify(json?.errors ?? null))) {
+          console.warn(
+            "[Epic Free Games] Ownership request was not authenticated " +
+            "in the page context; retrying through the browser cookie " +
+            "jar."
+          );
+
+          try {
+            return await gmRequestJson(url, options, timeoutMs);
+          } catch (fallbackError) {
+            console.warn(
+              "[Epic Free Games] Cookie-jar fallback failed:",
+              fallbackError
+            );
+          }
+        }
+
+        return json;
       } catch {
         throw new Error(
           "Ownership API returned invalid JSON: " +
@@ -347,34 +387,163 @@
 
   // ------------------------------------------------------------
   // OWNERSHIP CHECK
+  //
+  // The store frontend checks ownership with the
+  // "Entitlements.cartOffersValidation" operation over the signed-in
+  // cookie session. The desktop launcher query
+  // ("Launcher.entitledOfferItems") always answers 401 here because it
+  // expects a launcher token rather than a web session, so ownership
+  // could never be resolved. This mirrors the store's own request.
   // ------------------------------------------------------------
 
-  async function checkOfferOwnership(namespaceId, offerId) {
-    const query = `
-      query launcherQuery($namespace: String!, $offerId: String!) {
-        Launcher {
-          entitledOfferItems(
-            namespace: $namespace,
-            offerId: $offerId
-          ) {
-            entitledToAllItemsInOffer
-            entitledToAnyItemInOffer
+  const OWNERSHIP_QUERY = `
+    query getOffersValidation($offers: [OfferToValidate]!) {
+      Entitlements {
+        cartOffersValidation(offerParams: $offers) {
+          fullyOwnedOffers {
+            namespace
+            offerId
+          }
+          possiblePartialUpgradeOffers {
+            namespace
+            offerId
+          }
+          unablePartiallyUpgradeOffers {
+            namespace
+            offerId
           }
         }
       }
-    `;
+    }
+  `;
 
+  function ownershipKey(namespaceId, offerId) {
+    return `${namespaceId}:${offerId}`;
+  }
+
+  // Auth failures arrive inside an HTTP 200 response, so they have to be
+  // detected from the GraphQL error payload rather than a status code.
+  function isAuthFailure(text) {
+    return /authentication_failed|token_verification_failed|oauth\.invalid_token|missing_bearer_token|session_invalid|code 401|"status":\s*401/i.test(
+      String(text ?? "")
+    );
+  }
+
+  // The store keeps its session in cookies on its own domain. Mirroring
+  // its refresh call is what lets the script reuse that session instead
+  // of asking for any credential.
+  async function prepareStoreSession() {
+    const info = { healthcheck: null, sessionCookie: null };
+
+    try {
+      const cookies = String(pageWindow.document?.cookie ?? "");
+
+      info.sessionCookie =
+        /(?:^|;\s*)(?:store|refresh)TokenExpires=/.test(cookies);
+    } catch {
+      info.sessionCookie = null;
+    }
+
+    try {
+      const response = await pageWindow.fetch.call(
+        pageWindow,
+        AUTH_HEALTHCHECK_URL,
+        {
+          credentials: "include",
+          cache: "no-store",
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        }
+      );
+
+      info.healthcheck = response.status;
+    } catch (error) {
+      console.debug(
+        "[Epic Free Games] Store session refresh failed:",
+        error
+      );
+    }
+
+    console.debug("[Epic Free Games] Store session:", info);
+
+    return info;
+  }
+
+  // Fallback transport for the ownership query. The page-context fetch
+  // is the exact call the store makes, but a userscript sandbox can end
+  // up without the page's cookie jar. GM_xmlhttpRequest reaches
+  // store.epicgames.com through the browser's own cookies for that
+  // domain, so the signed-in session is reused and the script itself
+  // never reads, stores, or forwards any credential.
+  function gmRequestJson(url, options = {}, timeoutMs = 20000) {
+    return new Promise((resolve, reject) => {
+      if (typeof GM_xmlhttpRequest !== "function") {
+        reject(new Error("GM_xmlhttpRequest is unavailable"));
+        return;
+      }
+
+      GM_xmlhttpRequest({
+        method: options.method ?? "GET",
+        url,
+        headers: options.headers ?? {},
+        data: options.body,
+        timeout: timeoutMs,
+
+        onload(response) {
+          try {
+            resolve(JSON.parse(response.responseText));
+          } catch {
+            reject(
+              new Error(
+                `Ownership API returned invalid JSON ` +
+                `(HTTP ${response.status}): ` +
+                response.responseText.slice(0, 300)
+              )
+            );
+          }
+        },
+
+        onerror() {
+          reject(new Error(`Ownership request failed: ${url}`));
+        },
+
+        ontimeout() {
+          reject(
+            new Error(
+              `Ownership request timed out after ${timeoutMs} ms`
+            )
+          );
+        },
+      });
+    });
+  }
+
+  // Shown in the panel when the store rejects the session.
+  function buildOwnershipAuthHint(result) {
+    const signedOut =
+      result.session?.sessionCookie === false
+        ? " (no Epic store session cookie was found in this tab, so " +
+          "you may not be signed in)"
+        : "";
+
+    return (
+      " — Epic rejected the ownership check as unauthenticated" +
+      signedOut +
+      "; sign in at store.epicgames.com, reload this page, then " +
+      "press the button again"
+    );
+  }
+
+  async function checkOffersOwnership(batch) {
     const json = await pageContextFetchJson(OWNERSHIP_API, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
+      headers: OWNERSHIP_HEADERS,
       body: JSON.stringify({
-        query,
+        query: OWNERSHIP_QUERY,
         variables: {
-          namespace: namespaceId,
-          offerId,
+          offers: batch.map(game => ({
+            namespace: game.namespaceId,
+            offerId: game.offerId,
+          })),
         },
       }),
     });
@@ -388,13 +557,9 @@
       );
     }
 
-    const result = json.data?.Launcher?.entitledOfferItems;
+    const result = json.data?.Entitlements?.cartOffersValidation;
 
-    if (
-      !result ||
-      typeof result.entitledToAnyItemInOffer !== "boolean" ||
-      typeof result.entitledToAllItemsInOffer !== "boolean"
-    ) {
+    if (!result) {
       console.error(
         "[Epic Free Games] Unexpected ownership response:",
         json
@@ -403,59 +568,73 @@
       throw new Error("Unexpected ownership response structure");
     }
 
-    const owned =
-      result.entitledToAnyItemInOffer === true ||
-      result.entitledToAllItemsInOffer === true;
+    const owned = new Set();
 
-    return owned ? "owned" : "unowned";
+    for (const list of [
+      result.fullyOwnedOffers,
+      result.possiblePartialUpgradeOffers,
+      result.unablePartiallyUpgradeOffers,
+    ]) {
+      for (const item of list ?? []) {
+        if (item?.namespace && item?.offerId) {
+          owned.add(ownershipKey(item.namespace, item.offerId));
+        }
+      }
+    }
+
+    return owned;
   }
 
   async function checkGamesOwnership(games) {
-    const candidates = games.filter(game =>
-      game.checkoutEligible &&
-      game.namespaceId &&
-      game.offerId
+    const candidates = games.filter(
+      game =>
+        game.checkoutEligible &&
+        game.namespaceId &&
+        game.offerId
     );
 
-    let nextIndex = 0;
-    let failures = 0;
+    for (const game of candidates) {
+      game.ownershipStatus = "unknown";
+    }
 
     console.debug(
       "[Epic Free Games] Ownership candidates:",
       candidates.length
     );
 
-    const workerCount = Math.min(3, candidates.length);
+    const session = await prepareStoreSession();
 
-    async function worker() {
-      while (nextIndex < candidates.length) {
-        const index = nextIndex++;
-        const game = candidates[index];
+    const batches = [];
 
+    for (let i = 0; i < candidates.length; i += OWNERSHIP_BATCH_SIZE) {
+      batches.push(candidates.slice(i, i + OWNERSHIP_BATCH_SIZE));
+    }
+
+    let failures = 0;
+    let firstError = null;
+
+    await Promise.all(
+      batches.map(async batch => {
         try {
-          game.ownershipStatus = await checkOfferOwnership(
-            game.namespaceId,
-            game.offerId
-          );
+          const owned = await checkOffersOwnership(batch);
 
-          console.debug(
-            `[Epic Free Games] ${game.title}: ${game.ownershipStatus}`
-          );
+          for (const game of batch) {
+            game.ownershipStatus = owned.has(
+              ownershipKey(game.namespaceId, game.offerId)
+            )
+              ? "owned"
+              : "unowned";
+          }
         } catch (error) {
-          game.ownershipStatus = "unknown";
-          failures++;
+          failures += batch.length;
+          firstError = firstError || error.message;
 
           console.warn(
             "[Epic Free Games] Ownership check failed:",
-            game.title,
             error
           );
         }
-      }
-    }
-
-    await Promise.all(
-      Array.from({ length: workerCount }, () => worker())
+      })
     );
 
     for (const game of games) {
@@ -469,7 +648,7 @@
       `${candidates.length - failures} succeeded, ${failures} failed.`
     );
 
-    return failures;
+    return { failures, error: firstError, session };
   }
 
   // ------------------------------------------------------------
@@ -1302,11 +1481,19 @@
         errors.push(`Mobile ID lookup failed: ${error.message}`);
       }
 
-      const ownershipFailures = await checkGamesOwnership(enriched);
+      const ownership = await checkGamesOwnership(enriched);
 
-      if (ownershipFailures > 0) {
+      if (ownership.failures > 0) {
+        const detail = ownership.error
+          ? /401|authentication|unauthor/i.test(ownership.error)
+            ? buildOwnershipAuthHint(ownership)
+            : ` — ${ownership.error}`
+          : "";
+
         errors.push(
-          `Ownership could not be verified for ${ownershipFailures} offer(s); those offers are excluded from checkout`
+          `Ownership could not be verified for ` +
+          `${ownership.failures} offer(s)${detail}; those offers ` +
+          "are excluded from checkout"
         );
       }
 
